@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f8fc">
+  <title>Bili Downloader 3</title>
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Bili Downloader 首页">
+        <span class="brand-mark"><span></span><span></span></span>
+        <span class="brand-copy"><strong>Bili Downloader</strong><small>LOCAL VIDEO TOOLKIT</small></span>
+        <span class="version">3.0</span>
+      </a>
+      <nav class="main-nav" aria-label="主导航">
+        <button class="nav-item active" data-view="download">下载</button>
+        <button class="nav-item" data-view="tasks">任务 <span class="nav-count" id="taskCount">0</span></button>
+        <button class="nav-item" data-view="history">历史</button>
+      </nav>
+      <div class="top-actions">
+        <span class="connection" id="connectionState"><i></i> 本机服务</span>
+        <button class="login-button" id="loginOpen"><span class="login-dot"></span><span id="loginLabel">扫码登录</span></button>
+      </div>
+    </header>
+
+    <main>
+      <section class="view active" id="view-download">
+        <div class="hero">
+          <div class="eyebrow"><span class="eyebrow-line"></span> BILIBILI VIDEO DOWNLOADER</div>
+          <h1>喜欢的视频，<em>留在本地。</em></h1>
+          <p class="hero-copy">粘贴 B站视频链接，解析可用画质。支持 BV / AV 号、短链接与多分P。</p>
+        </div>
+
+        <section class="input-panel panel">
+          <div class="input-heading">
+            <div><span class="step">01</span><strong>输入视频地址</strong></div>
+            <span class="input-hint">支持 BV 号 · AV 号 · b23.tv</span>
+          </div>
+          <form id="parseForm" class="url-form">
+            <div class="url-input-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3A5 5 0 0 0 13 2.93l-1.72 1.71M14 11a5 5 0 0 0-7.07 0l-3 3A5 5 0 0 0 11 21.07l1.71-1.71"/></svg>
+              <input id="videoInput" type="text" autocomplete="off" spellcheck="false" placeholder="粘贴 Bilibili 视频链接或输入 BV / AV 号…" aria-label="B站视频链接">
+              <button class="clear-input" id="clearInput" type="button" aria-label="清空输入">×</button>
+            </div>
+            <button class="primary-button parse-button" id="parseButton" type="submit"><span>解析视频</span><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+          </form>
+          <div class="input-foot"><span><i class="secure-icon">✓</i> 本地解析 · 不经过第三方下载站</span><span>不会使用 yt-dlp</span></div>
+          <div class="error-line hidden" id="parseError"></div>
+        </section>
+
+        <section class="result-section hidden" id="resultSection">
+          <div class="section-label"><span class="step">02</span><strong>视频信息</strong><span class="line"></span><span class="muted-label">已成功解析</span></div>
+          <div class="result-card panel">
+            <div class="video-summary">
+              <div class="cover-wrap"><img id="coverImage" alt="视频封面"><span class="cover-duration" id="videoDuration"></span></div>
+              <div class="video-copy">
+                <div class="video-badges"><span class="bili-badge">BILIBILI</span><span id="videoIdLabel"></span></div>
+                <h2 id="videoTitle">视频标题</h2>
+                <div class="video-meta"><span id="videoOwner"></span><span id="videoViews"></span><span id="videoLikes"></span></div>
+                <p class="video-desc" id="videoDescription"></p>
+              </div>
+            </div>
+            <div class="selection-panel">
+              <div class="selection-heading"><span class="step">03</span><strong>下载设置</strong></div>
+              <label class="field-label" for="partSelect">视频分P</label>
+              <div class="select-wrap"><select id="partSelect"></select><svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></div>
+              <div class="quality-heading"><label class="field-label" for="qualitySelect">画质选择</label><span class="quality-note">按账号实际权限显示</span></div>
+              <div class="select-wrap"><select id="qualitySelect" disabled><option>正在读取可用画质…</option></select><svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></div>
+              <div class="quality-error hidden" id="qualityError"></div>
+              <button class="download-button" id="downloadButton" disabled><span class="download-icon">↓</span><span>下载视频</span><span class="download-arrow">→</span></button>
+              <p class="download-note"><span class="note-dot"></span> DASH 将自动合并音视频，完成后再提供文件</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="task-preview hidden" id="taskPreview">
+          <div class="section-label"><strong>当前任务</strong><span class="line"></span><button class="text-button" data-view="tasks">查看全部 →</button></div>
+          <div id="recentTask"></div>
+        </section>
+
+        <section class="feature-row">
+          <div class="feature-item"><span class="feature-icon">↗</span><div><strong>真实画质列表</strong><small>从 B站播放接口实时读取</small></div></div>
+          <div class="feature-item"><span class="feature-icon">⇄</span><div><strong>音视频自动合并</strong><small>FFmpeg 无损封装</small></div></div>
+          <div class="feature-item"><span class="feature-icon">⌂</span><div><strong>数据留在设备</strong><small>登录信息保存在本机</small></div></div>
+        </section>
+      </section>
+
+      <section class="view" id="view-tasks">
+        <div class="page-heading"><div class="eyebrow"><span class="eyebrow-line"></span> DOWNLOAD MANAGER</div><h1>下载任务</h1><p>查看数据接收、音视频封装和文件校验进度。</p></div>
+        <div class="list-toolbar"><strong>任务列表</strong><button class="soft-button" id="refreshTasks">刷新</button></div>
+        <div class="task-list" id="taskList"><div class="empty-state"><span>↓</span><strong>还没有下载任务</strong><p>解析视频并点击下载后，任务会显示在这里。</p></div></div>
+      </section>
+
+      <section class="view" id="view-history">
+        <div class="page-heading"><div class="eyebrow"><span class="eyebrow-line"></span> YOUR DOWNLOADS</div><h1>下载历史</h1><p>已完成并通过文件检查的视频。</p></div>
+        <div class="list-toolbar"><strong>最近完成</strong><span class="muted-label">保留最近 100 条记录</span></div>
+        <div class="history-list" id="historyList"><div class="empty-state"><span>◷</span><strong>暂无下载记录</strong><p>完成的视频会自动出现在这里。</p></div></div>
+      </section>
+    </main>
+
+    <footer class="footer"><span>BDL <b>3.0</b></span><span>为 Termux 本地运行而设计</span><span class="footer-status"><i></i> 数据仅保存在本设备</span></footer>
+  </div>
+
+  <div class="modal-backdrop hidden" id="loginModal" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <div class="login-modal">
+      <button class="modal-close" id="loginClose" aria-label="关闭">×</button>
+      <div class="modal-icon">B</div>
+      <div class="eyebrow centered">BILIBILI ACCOUNT</div>
+      <h2 id="loginTitle">扫码登录 B站</h2>
+      <p class="modal-copy">使用 Bilibili 手机 APP 扫描二维码<br>在 APP 中确认后即可读取账号可用画质</p>
+      <div class="qr-frame" id="qrFrame"><div class="qr-placeholder"><span class="spinner"></span><small>正在生成二维码…</small></div></div>
+      <div class="qr-state" id="qrState">请稍候，正在连接 B站</div>
+      <button class="soft-button modal-refresh" id="qrRefresh">刷新二维码</button>
+      <div class="privacy-note"><span>▣</span> Cookie 仅保存在本机，不会上传到其他服务器</div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
