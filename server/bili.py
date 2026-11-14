@@ -1,7 +1,7 @@
 import hashlib
 import re
 import time
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
 import requests
 
@@ -10,6 +10,7 @@ from .config import REQUEST_TIMEOUT
 API = "https://api.bilibili.com"
 REFERER = "https://www.bilibili.com/"
 USER_AGENT = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/128.0 Mobile Safari/537.36"
+ALLOWED_LINK_HOSTS = {"bilibili.com", "www.bilibili.com", "m.bilibili.com", "b23.tv", "www.b23.tv"}
 
 MIXIN_TABLE = [
     46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
@@ -34,9 +35,17 @@ class BiliClient:
             "Accept": "application/json, text/plain, */*",
         })
         self.cookie = str(cookie or "").strip()
-        if self.cookie:
-            self.session.headers["Cookie"] = self.cookie
         self._mixin_key = None
+        # Scope authorization cookies to Bilibili only. Never attach them as
+        # a global Cookie header because short-link resolution visits b23.tv.
+        for item in self.cookie.split(";"):
+            if "=" not in item:
+                continue
+            name, value = item.strip().split("=", 1)
+            name = name.strip()
+            if name:
+                self.session.cookies.set(name, value.strip(),
+                                         domain=".bilibili.com", path="/")
 
     def _get_json(self, url, params=None, allow_redirects=True):
         try:
@@ -87,17 +96,46 @@ class BiliClient:
         match = re.search(r"(BV[0-9A-Za-z]{10}|av\d+)", raw, re.I)
         if match:
             value = match.group(1)
-            return {"bvid": value if value.lower().startswith("bv") else "", 
+            return {"bvid": value if value.lower().startswith("bv") else "",
                     "aid": int(value[2:]) if value.lower().startswith("av") else 0}
 
         candidate = raw if "://" in raw else "https://" + raw
         parsed = urlparse(candidate)
         host = _clean_host(parsed.netloc)
-        allowed = host in {"bilibili.com", "www.bilibili.com", "m.bilibili.com", "b23.tv", "www.b23.tv"}
-        if not allowed:
+        if host not in ALLOWED_LINK_HOSTS or parsed.scheme not in {"http", "https"}:
             raise BiliError("目前只接受 B站视频地址、b23.tv 短链接或 BV/AV 号")
+        if parsed.port not in (None, 80, 443):
+            raise BiliError("不接受带自定义端口的视频地址")
+        if parsed.scheme == "http":
+            candidate = parsed._replace(scheme="https", netloc=parsed.netloc.split(":")[0]).geturl()
+
+        current = candidate
+        response = None
+        finished = False
+        for _ in range(7):
+            try:
+                response = self.session.get(current, timeout=REQUEST_TIMEOUT,
+                                            allow_redirects=False)
+            except requests.RequestException as exc:
+                raise BiliError("解析短链接失败：" + str(exc)) from exc
+            if response.is_redirect:
+                location = response.headers.get("Location")
+                response.close()
+                if not location:
+                    raise BiliError("B站短链接返回了无效的跳转")
+                target = urljoin(current, location)
+                target_parts = urlparse(target)
+                target_host = _clean_host(target_parts.netloc)
+                if (target_parts.scheme != "https" or target_host not in ALLOWED_LINK_HOSTS
+                        or target_parts.port not in (None, 443)):
+                    raise BiliError("短链接跳转到了非 B站域名，已阻止请求")
+                current = target
+                continue
+            finished = True
+            break
+        if not finished or response is None:
+            raise BiliError("短链接重定向次数过多")
         try:
-            response = self.session.get(candidate, timeout=REQUEST_TIMEOUT, allow_redirects=True)
             response.raise_for_status()
         except requests.RequestException as exc:
             raise BiliError("解析短链接失败：" + str(exc)) from exc
