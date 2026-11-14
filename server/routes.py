@@ -141,7 +141,7 @@ def login_poll():
             return jsonify({"ok": True, "state": "waiting", "message": data.get("message") or "等待扫码确认"})
 
         cookie_values = session.cookies.get_dict()
-        if not cookie_values and data.get("url"):
+        if data.get("url"):
             query = parse_qs(urlparse(data["url"]).query)
             for name in ("SESSDATA", "bili_jct", "DedeUserID", "DedeUserID__ckMd5", "sid"):
                 if query.get(name):
