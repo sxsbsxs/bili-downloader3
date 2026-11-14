@@ -1,12 +1,11 @@
+import json
 import os
 import re
 import shutil
 import subprocess
-import time
 from pathlib import Path
 
 import requests
-from werkzeug.utils import secure_filename
 
 from .auth import read_cookie
 from .bili import BiliClient, BiliError, USER_AGENT
@@ -14,9 +13,9 @@ from .config import DOWNLOAD_DIR, REQUEST_TIMEOUT
 
 def _safe_title(title):
     value = re.sub(r"[\\/:*?\"<>|\r\n\t]+", " ", str(title or "Bilibili Video"))
-    value = re.sub(r"\s+", " ", value).strip(" .")
-    value = value[:90] or "Bilibili Video"
-    return secure_filename(value.replace(" ", "_")) or "Bilibili_Video"
+    value = re.sub(r"\s+", "_", value).strip(" ._")
+    value = value[:90] or "Bilibili_Video"
+    return re.sub(r"[^\w.-]+", "_", value, flags=re.UNICODE) or "Bilibili_Video"
 
 def _track_urls(track):
     urls = []
@@ -89,6 +88,27 @@ def _format_bytes(value):
         value /= 1024
     return "%.1f GB" % value
 
+def _validate_media(path):
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        raise BiliError("没有找到 ffprobe。请在 Termux 执行：pkg install ffmpeg")
+    result = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration:stream=codec_type",
+         "-of", "json", str(path)],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=45
+    )
+    if result.returncode != 0:
+        raise BiliError("文件无法被 ffprobe 识别：" + (result.stderr or "媒体探测失败").strip()[-500:])
+    try:
+        info = json.loads(result.stdout)
+        streams = info.get("streams") or []
+        duration = float((info.get("format") or {}).get("duration") or 0)
+    except (ValueError, TypeError):
+        raise BiliError("媒体文件信息不完整")
+    if not any(stream.get("codec_type") == "video" for stream in streams) or duration <= 0:
+        raise BiliError("文件缺少有效视频流或时长信息")
+    return duration
+
 def _merge_tracks(video_path, audio_path, output_path):
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -102,20 +122,7 @@ def _merge_tracks(video_path, audio_path, output_path):
     if result.returncode != 0 or not output_path.exists() or output_path.stat().st_size < 1024:
         detail = (result.stderr or "FFmpeg 没有生成有效文件").strip()[-900:]
         raise BiliError("音视频封装失败：" + detail)
-    ffprobe = shutil.which("ffprobe")
-    if ffprobe:
-        check = subprocess.run(
-            [ffprobe, "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(output_path)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30
-        )
-        try:
-            duration = float(check.stdout.strip())
-        except (TypeError, ValueError):
-            duration = 0
-        if check.returncode != 0 or duration <= 0:
-            output_path.unlink(missing_ok=True)
-            raise BiliError("封装文件未通过 ffprobe 时长校验")
+    _validate_media(output_path)
     return output_path
 
 def run_download(task_id, store, payload):
@@ -198,4 +205,5 @@ def run_download(task_id, store, payload):
 
     if not output.exists() or output.stat().st_size < 1024:
         raise BiliError("最终文件不存在或大小异常")
+    _validate_media(output)
     store.complete(task_id, output.name, video["title"], output.stat().st_size)

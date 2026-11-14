@@ -1,13 +1,13 @@
 import base64
 import io
+import re
 import time
 from threading import RLock
 from urllib.parse import parse_qs, urlparse
 
 import qrcode
 import requests
-from flask import Blueprint, jsonify, request, send_file, send_from_directory
-from werkzeug.utils import secure_filename
+from flask import Blueprint, jsonify, request, send_from_directory
 
 from .auth import clear_cookie, login_status, read_cookie, save_cookie
 from .bili import BiliClient, BiliError, USER_AGENT
@@ -56,7 +56,7 @@ def health():
     return jsonify({
         "ok": True,
         "app": "Bili Downloader 3",
-        "ffmpeg": bool(shutil.which("ffmpeg")),
+        "ffmpeg": bool(shutil.which("ffmpeg")) and bool(shutil.which("ffprobe")),
         "login": login_status(),
     })
 
@@ -201,13 +201,12 @@ def history():
 
 @api.get("/files/<path:filename>")
 def download_file(filename):
-    safe = secure_filename(filename)
-    if not safe or safe != filename or "/" in filename or "\\" in filename:
+    if not filename or not re.fullmatch(r"[\w.-]+", filename, flags=re.UNICODE):
         return _error("文件名无效", 400)
-    path = DOWNLOAD_DIR / safe
+    path = DOWNLOAD_DIR / filename
     if not path.is_file():
         return _error("文件不存在", 404)
-    return send_from_directory(DOWNLOAD_DIR, safe, as_attachment=True)
+    return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
 
 def register_web_routes(app):
     @app.get("/")

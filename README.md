@@ -23,8 +23,9 @@
 - BV、AV、B站视频 URL、b23.tv 短链接识别。
 - 视频信息、封面、UP主、简介和分P。
 - 由 B站播放接口动态返回真实可用画质；不会写死最高 1080P。
-- B站扫码登录；Cookie 仅保存在本机 data/auth.json。
-- DASH 音视频分轨下载、备用 CDN、临时文件续传和 FFmpeg 无损合并。
+- B站 APP 扫码登录；Cookie 仅保存在本机 data/auth.json。
+- DASH 音视频分轨下载、备用 CDN 回退、临时文件 Range 续传和 FFmpeg 无损封装。
+- 最终文件使用 ffprobe 检查视频流和时长，完成后才标记 100%。
 - 下载任务、阶段进度、历史记录和移动端适配网页 UI。
 
 ## 依赖
